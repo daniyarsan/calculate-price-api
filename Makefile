@@ -1,38 +1,57 @@
-##################
-# Docker compose
-##################
+#!/usr/bin/make -f
+# SHELL = /bin/sh
 APP_DIR=$(shell echo $$(cd . && pwd))
-DC=docker-compose
+DC=docker-compose -f ./docker/docker-compose.yml
 
-start: dc_build dc_up
+########## COMBINED COMMANDS
+start: build up
+restart: stop up
+rebuild: stop start
 
-
-dc_build:
-	$(DC) -f ./docker/docker-compose.yml build
-dc_start:
-	$(DC) -f ./docker/docker-compose.yml start
-dc_stop:
-	$(DC) -f ./docker/docker-compose.yml stop
-dc_up:
-	$(DC) -f ./docker/docker-compose.yml up -d --remove-orphans
-
-dc_ps:
-	$(DC) -f ./docker/docker-compose.yml ps
-dc_logs:
-	$(DC) -f ./docker/docker-compose.yml logs -f
-dc_down:
-	$(DC) -f ./docker/docker-compose.yml down -v --rmi=all --remove-orphans
-
-##################
-# App
-##################
-
-app_bash:
-	$(DC) -f ./docker/docker-compose.yml exec -u www-data php bash
-	
-dc_composer:
-	$(DC) -f ./docker/docker-compose.yml exec -u www-data php composer install && \
+########## STEPS
+build:
+	cd $(APP_DIR) && $(DC) build
+up:
+	docker rm -f $$(docker ps -a | grep quest | awk '{print $$1}') || echo
+	cd $(APP_DIR) && $(DC) up -d --remove-orphans --force-recreate
+	$(MAKE) composer
+down:
+	cd $(APP_DIR) && $(DC) down -v --remove-orphans
+stop:
+	cd $(APP_DIR) && $(DC) stop
+composer:
+	cd $(APP_DIR) && $(DC) exec -T php_fpm composer install && \
 	wait
+comp:
+	cd $(APP_DIR) && $(DC) exec -T php_fpm composer
 
-app_exec:
-	$(DC) -f ./docker/docker-compose.yml exec -u www-data php
+
+######## DB COMMANDS
+console:
+	$(DC) exec php_fpm php bin/console
+create_db:
+	$(DC) exec php_fpm php bin/console doctrine:database:create
+import_db:
+	$(DC) exec mysql /var/dump/dump_import.sh
+	$(DC) exec php_fpm php bin/console doctrine:schema:update --force
+update_db:
+	$(DC) exec php_fpm php bin/console doctrine:schema:update --force
+
+#PROCESS
+####################################################################
+configure:
+	if ! grep -q '127.0.0.1 quest.loc' "/etc/hosts"; then \
+    echo '127.0.0.1 quest.loc' | sudo tee -a /etc/hosts; \
+    fi
+
+sh:
+	docker-compose exec php_fpm bash
+
+####################################################################
+
+clear:
+	$(DC) down -v --remove-orphans
+	docker container prune -f
+	docker image prune -f
+	docker volume prune -f
+	@echo "======================="

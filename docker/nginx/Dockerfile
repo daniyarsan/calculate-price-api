@@ -2,8 +2,7 @@ FROM nginx:alpine
 
 RUN apk update && apk upgrade && apk add --no-cache bash
 
-
-ARG PHP_UPSTREAM_CONTAINER=php
+ARG PHP_UPSTREAM_CONTAINER=php_fpm
 ARG PHP_UPSTREAM_PORT=9000
 
 RUN set -x ; \
