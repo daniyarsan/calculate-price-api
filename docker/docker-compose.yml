@@ -12,9 +12,6 @@ services:
       - ./../:/var/www/
     environment:
       XDEBUG_CONFIG: 'discover_client_host=true client_host=host.docker.internal log_level=0'
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-
 
   nginx:
     container_name: nginx
@@ -32,10 +29,11 @@ services:
     image: mysql:latest
     volumes:
       - ./mysql/db:/var/lib/mysql
-      - ./dump:/var/dump
+      - ./mysql/dump.sql:/var/dump.sql
+      - ./mysql/import_dump.sh:/var/import_dump.sh
     environment:
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE}
     ports:
       - ${DATABASE_HOST_PORT}:3306
-

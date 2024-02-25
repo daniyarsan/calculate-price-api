@@ -5,8 +5,10 @@ namespace App\Managers;
 
 use App\DTO\DtoInterface;
 use App\DTO\PurchaseDto;
+use App\Entity\Coupon;
 use App\Entity\Product;
 use App\Entity\Purchase;
+use App\Entity\Tax;
 use App\Repository\CouponRepository;
 use App\Repository\ProductRepository;
 use App\Repository\TaxRepository;
@@ -28,8 +30,7 @@ class PurchaseManager implements CreatorInterface
         private EntityManagerInterface $entityManager,
         private ProductRepository $productRepository,
         private TaxRepository $taxRepository,
-        private CouponRepository $couponRepository,
-        private PriceService $priceService,
+        private CouponRepository $couponRepository
     ){}
 
     private function getProduct(PurchaseDto $purchaseDto):Product
@@ -49,21 +50,36 @@ class PurchaseManager implements CreatorInterface
         $coupon = $dto->getCouponCode() ? $this->couponRepository->findOneBy(['couponCode' => $dto->getCouponCode()]) : null;
         $tax = $dto->getTaxNumber() ? $this->taxRepository->findOneBy(['format' => $dto->getTaxNumber()]) : null;
 
-        return  $this->priceService->calculatePrice($product, $tax, $coupon);
+        return  $this->getProductTotalPrice($product, $tax, $coupon);
     }
 
     public function create(DtoInterface $dto): Purchase
     {
         $product = $this->getProduct($dto);
-        $coupon = $this->couponRepository->findOneBy(['couponCode' => $dto->getCouponCode()]);
         $tax = $dto->getTaxNumber() ? $this->taxRepository->findOneBy(['format' => $dto->getTaxNumber()]) : null;
+        $coupon = $this->couponRepository->findOneBy(['couponCode' => $dto->getCouponCode()]);
 
         $entity = new Purchase();
         $entity->setProduct($product);
         $entity->setTaxNumber($tax ? $tax->getFormat() : null);
         $entity->setCoupon($coupon);
-        $entity->setTotalPrice($this->priceService->calculatePrice($product, $tax, $coupon));
+        $entity->setTotalPrice($this->getProductTotalPrice($product, $tax, $coupon));
 
         return $entity;
     }
+
+
+    public function getProductTotalPrice(Product $product, ?Tax $tax, ?Coupon $coupon): int
+    {
+        $productPrice = $product->getPrice();
+        if ($tax) {
+            $productPrice += $tax->getAmountByPrice($productPrice) ;
+        }
+        if ($coupon) {
+            $productPrice -= $coupon->getDiscountByPrice($productPrice);
+        }
+
+        return $productPrice;
+    }
+
 }
